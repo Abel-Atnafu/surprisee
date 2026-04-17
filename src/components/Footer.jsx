@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion'
 import { useEffect, useState, useRef } from 'react'
+import Confetti from './Confetti'
 
 function useInView(options = {}) {
   const ref = useRef(null)
@@ -23,6 +24,14 @@ function useInView(options = {}) {
 export default function Footer() {
   const { ref, inView } = useInView({ threshold: 0.3, triggerOnce: true })
   const [revealed, setRevealed] = useState(false)
+  const [confettiTrigger, setConfettiTrigger] = useState(0)
+
+  const handleReveal = () => {
+    setRevealed(!revealed)
+    if (!revealed) {
+      setConfettiTrigger(prev => prev + 1)
+    }
+  }
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -81,11 +90,12 @@ export default function Footer() {
             variants={itemVariants}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            onClick={() => setRevealed(!revealed)}
+            onClick={handleReveal}
             className="mb-8 px-8 py-3 bg-gradient-to-r from-rose-400 to-pink-500 text-white font-semibold rounded-full hover:shadow-lg transition-shadow"
           >
             💌 Click for a secret message
           </motion.button>
+          <Confetti trigger={confettiTrigger} />
 
           {revealed && (
             <motion.div
