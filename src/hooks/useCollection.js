@@ -1,51 +1,60 @@
-import { useEffect, useState, useCallback } from 'react';
-import {
-  collection, onSnapshot, addDoc, updateDoc, deleteDoc,
-  doc, serverTimestamp, query, orderBy,
-} from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { useEffect, useState, useCallback, useRef } from 'react';
+import { supabase } from '../lib/supabase';
+import { toCamel, toSnake } from '../lib/mapper';
 
-// Generic realtime collection hook.
-export function useCollection(path, { orderField = null } = {}) {
+// Generic realtime hook for a Supabase table with an `id` PK.
+// Refetches the full list on any postgres_changes event — simple and
+// correct for low-traffic tables (menu, combos).
+export function useCollection(table) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const activeRef = useRef(true);
 
   useEffect(() => {
-    if (!db) {
+    activeRef.current = true;
+    if (!supabase) { setLoading(false); return; }
+
+    const load = async () => {
+      const { data, error: err } = await supabase.from(table).select('*');
+      if (!activeRef.current) return;
+      if (err) { setError(err); setLoading(false); return; }
+      setItems((data ?? []).map(toCamel));
       setLoading(false);
-      return;
-    }
-    const base = collection(db, path);
-    const q = orderField ? query(base, orderBy(orderField)) : base;
-    const unsub = onSnapshot(
-      q,
-      (snap) => {
-        setItems(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-        setLoading(false);
-      },
-      (err) => {
-        setError(err);
-        setLoading(false);
-      }
-    );
-    return unsub;
-  }, [path, orderField]);
+    };
+    load();
+
+    const channel = supabase
+      .channel(`realtime:${table}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table }, load)
+      .subscribe();
+
+    return () => {
+      activeRef.current = false;
+      supabase.removeChannel(channel);
+    };
+  }, [table]);
 
   const add = useCallback(async (data) => {
-    if (!db) throw new Error('Firebase not configured');
-    return addDoc(collection(db, path), { ...data, createdAt: serverTimestamp() });
-  }, [path]);
+    if (!supabase) throw new Error('Supabase not configured');
+    const { error: err } = await supabase.from(table).insert(toSnake(data));
+    if (err) throw err;
+  }, [table]);
 
   const update = useCallback(async (id, patch) => {
-    if (!db) throw new Error('Firebase not configured');
-    return updateDoc(doc(db, path, id), patch);
-  }, [path]);
+    if (!supabase) throw new Error('Supabase not configured');
+    const { error: err } = await supabase
+      .from(table)
+      .update(toSnake(patch))
+      .eq('id', id);
+    if (err) throw err;
+  }, [table]);
 
   const remove = useCallback(async (id) => {
-    if (!db) throw new Error('Firebase not configured');
-    return deleteDoc(doc(db, path, id));
-  }, [path]);
+    if (!supabase) throw new Error('Supabase not configured');
+    const { error: err } = await supabase.from(table).delete().eq('id', id);
+    if (err) throw err;
+  }, [table]);
 
   return { items, loading, error, add, update, remove };
 }

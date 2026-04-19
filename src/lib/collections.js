@@ -1,4 +1,5 @@
-export const MENU = 'menuItems';
+// Postgres table names.
+export const MENU = 'menu_items';
 export const COMBOS = 'combos';
 export const HOURS = 'hours';
 export const ORDERS = 'orders';

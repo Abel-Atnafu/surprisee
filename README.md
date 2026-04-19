@@ -1,8 +1,8 @@
 # SAR Burger
 
-Customer-facing site + live admin panel for SAR Burger, a mid-to-upscale burger
-spot in Addis Ababa. Admin edits sync to every device in real time via Firebase
-Firestore — no redeploy required.
+Customer-facing site + live admin panel for SAR Burger, a mid-to-upscale
+burger spot in Addis Ababa. Admin edits sync to every device in real time
+via Supabase (Postgres + realtime channels) — no redeploy required.
 
 ## Stack
 
@@ -10,54 +10,37 @@ Firestore — no redeploy required.
 - Tailwind CSS 3 (custom charcoal / cream / amber theme)
 - Framer Motion (hero motion)
 - React Router (`/` customer, `/admin` panel)
-- Firebase Firestore (realtime data + settings)
+- Supabase (Postgres + realtime + RLS)
 
 ## Getting started
 
 ```bash
 npm install
-cp .env.example .env    # then paste your Firebase web config values
+cp .env.example .env    # paste your Supabase URL + anon key
 npm run dev             # http://localhost:5173
 ```
 
-### Firebase setup (once)
+### Supabase setup (once)
 
-1. Create a Firebase project at <https://console.firebase.google.com>.
-2. Enable **Cloud Firestore** in production mode.
-3. Project settings → "Your apps" → Web app → copy the web config.
-4. Fill in `.env` (see `.env.example`) — all six `VITE_FIREBASE_*` keys.
-5. Run the app, visit `/admin`, sign in with the default password
-   `sarAdmin2025`, open the **Settings** tab and click **Seed defaults** — this
-   creates `settings/global` and the seven `hours/{mon..sun}` documents.
-6. Change the admin password and phone/address/map URL from the Settings tab.
-
-### Firestore security rules (recommended starting point)
-
-Customer site reads menu/combos/hours/settings; admin writes everything.
-Restrict reads on the admin password field — either by splitting `settings`
-into `public` and `private` docs or with a rule like:
-
-```
-match /databases/{db}/documents {
-  match /menuItems/{doc}     { allow read: if true; allow write: if false; }
-  match /combos/{doc}        { allow read: if true; allow write: if false; }
-  match /hours/{doc}         { allow read: if true; allow write: if false; }
-  match /orders/{doc}        { allow read, write: if false; }
-  match /settings/global     { allow read: if true;  allow write: if false; }
-}
-```
-
-Then grant writes via the Firebase console only, or migrate admin auth to
-Firebase Auth for production use. **The current implementation compares the
-admin password client-side against a Firestore field** — suitable for a small
-owner-only panel, not for high-security use.
+1. Create a project at <https://supabase.com> (free tier is enough).
+2. Project settings → **API** → copy:
+   - **Project URL** → `VITE_SUPABASE_URL`
+   - **anon public key** → `VITE_SUPABASE_ANON_KEY`
+3. SQL Editor → New query → paste the contents of
+   [`supabase/schema.sql`](./supabase/schema.sql) → **Run**.
+   This creates the 5 tables, seeds `settings/global` and the 7 hours rows,
+   enables realtime, and applies open RLS policies.
+4. (Optional) Visit `/admin`, sign in with `sarAdmin2025`, open
+   **Settings** → **Seed defaults** if you want a safety-net re-seed.
+5. Change the admin password and the phone / address / Google Maps URL
+   from the Settings tab.
 
 ## Routes
 
-| Path     | Purpose                                 |
-| -------- | --------------------------------------- |
+| Path     | Purpose                                                         |
+| -------- | --------------------------------------------------------------- |
 | `/`      | Customer site (nav, hero, menu, combos, hours, location, footer) |
-| `/admin` | Password-gated admin panel              |
+| `/admin` | Password-gated admin panel                                       |
 
 A small "Admin" link sits in the footer. Session persists until the tab closes.
 
@@ -65,23 +48,38 @@ A small "Admin" link sits in the footer. Session persists until the tab closes.
 
 - **Menu** — add / edit / delete items, toggle availability, set category and sort order.
 - **Combos** — create featured combo deals with an itemised list and price.
-- **Hours** — set open/close time per weekday or mark a day closed; the
-  customer site shows an "Open now" indicator computed in Addis Ababa time.
+- **Hours** — set open/close per weekday or mark closed; the customer site
+  shows an "Open now" indicator computed in Addis Ababa time.
 - **Orders** — log WhatsApp orders (customer, items, total, note) for records.
 - **Settings** — phone, address, Google Maps embed URL, hero tagline, admin password.
 
-## Deploy
+## Realtime
 
-Vercel is already configured (`vercel.json` includes SPA rewrites so `/admin`
-survives a hard refresh):
+Every customer view and admin tab subscribes to `postgres_changes` on the
+relevant table. An admin edit in one tab reflects on `/` in every other open
+tab within ~1 s, no reload.
 
-```bash
-npm run build
-# or:
-vercel
-```
+## Deploy on Vercel
 
-Remember to set the `VITE_FIREBASE_*` env vars in the Vercel project settings.
+`vercel.json` already includes SPA rewrites so `/admin` survives a hard refresh.
+
+1. vercel.com → Add New → Project → import `Abel-Atnafu/surprisee`.
+2. Framework: **Vite** (auto-detected).
+3. Add the two env vars (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`)
+   for Production + Preview.
+4. Deploy.
+
+## Security note
+
+The admin password lives in the `settings.admin_password` column and is
+compared client-side. With the open RLS policies in `supabase/schema.sql`,
+anyone who has the anon key (which ships in the bundle) can read it. That's
+acceptable only for a small owner-only panel.
+
+To harden: migrate to **Supabase Auth** (email + password), drop the
+`admin_password` column, and replace the open `for all` policies with
+`using (auth.role() = 'authenticated')`. The `AuthContext` is isolated so
+the swap is a single-file change.
 
 ## Handoff checklist
 
@@ -91,5 +89,5 @@ Before handing the keys to the owner, update these:
 - [ ] **Address** — admin → Settings.
 - [ ] **Google Maps embed** — Maps → Share → Embed a map → copy `src` URL.
 - [ ] **Admin password** — admin → Settings → Admin password (default `sarAdmin2025`).
-- [ ] **Seed defaults** clicked at least once on first load.
-- [ ] Firestore rules applied (see above).
+- [ ] Schema applied (`supabase/schema.sql`), tables visible in Supabase Studio.
+- [ ] `/admin` is reachable and login works on the live URL.

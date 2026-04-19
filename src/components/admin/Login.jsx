@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import Logo from '../ui/Logo';
-import { firebaseConfigured } from '../../lib/firebase';
+import { supabaseConfigured } from '../../lib/supabase';
 
 export default function Login() {
   const { login } = useAuth();
@@ -33,9 +33,9 @@ export default function Login() {
           Enter the admin password to manage the menu.
         </p>
 
-        {!firebaseConfigured && (
+        {!supabaseConfigured && (
           <div className="mt-4 rounded-lg bg-tomato-500/10 p-3 text-xs text-tomato-600">
-            Firebase isn&rsquo;t configured yet. Add <code>VITE_FIREBASE_*</code> env vars.
+            Supabase isn&rsquo;t configured yet. Add <code>VITE_SUPABASE_URL</code> and <code>VITE_SUPABASE_ANON_KEY</code>.
           </div>
         )}
 

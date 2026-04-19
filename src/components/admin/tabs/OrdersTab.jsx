@@ -9,7 +9,8 @@ function blank() {
 
 function formatTimestamp(ts) {
   if (!ts) return '';
-  const d = ts.toDate ? ts.toDate() : new Date(ts);
+  const d = new Date(ts);
+  if (Number.isNaN(d.getTime())) return '';
   return d.toLocaleString('en-US', {
     timeZone: 'Africa/Addis_Ababa',
     dateStyle: 'medium',
