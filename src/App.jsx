@@ -1,23 +1,24 @@
-import { motion, useScroll, useTransform } from 'framer-motion'
-import HeroSection from './components/HeroSection'
-import HowWeMet from './components/HowWeMet'
-import Timeline from './components/Timeline'
-import FirstDate from './components/FirstDate'
-import MusicSection from './components/MusicSection'
-import Footer from './components/Footer'
+import { Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider } from './context/AuthContext';
+import CustomerSite from './components/customer/CustomerSite';
+import AdminGate from './components/admin/AdminGate';
+import AdminPanel from './components/admin/AdminPanel';
 
 export default function App() {
-  const { scrollY } = useScroll()
-  const opacity = useTransform(scrollY, [0, 100], [1, 0.8])
-
   return (
-    <motion.div style={{ opacity }} className="min-h-screen">
-      <HeroSection />
-      <HowWeMet />
-      <Timeline />
-      <FirstDate />
-      <MusicSection />
-      <Footer />
-    </motion.div>
-  )
+    <AuthProvider>
+      <Routes>
+        <Route path="/" element={<CustomerSite />} />
+        <Route
+          path="/admin"
+          element={
+            <AdminGate>
+              <AdminPanel />
+            </AdminGate>
+          }
+        />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </AuthProvider>
+  );
 }
